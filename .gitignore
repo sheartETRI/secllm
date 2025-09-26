@@ -1,4 +1,5 @@
 models/
 tmp/
 venv/
+codeql_tmp/
 __pycache__

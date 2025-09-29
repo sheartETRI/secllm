@@ -37,9 +37,9 @@ unzip codeql-linux64.zip<br>
 Add the extracted folder to your system’s `PATH` environment variable to make CodeQL accessible from any directory.<br>
 vi ~/.bashrc<br>
 add the following lines
-- CODEQL_HOME=(YOUR_HOME_PATH)/codeql-home/codeql
-- export CODEQL_HOME
-- PATH=$CODEQL_HOME:$PATH
+- CODEQL_BIN_HOME=(YOUR_HOME_PATH)/codeql-home/codeql
+- export CODEQL_BIN_HOME
+- PATH=$CODEQL_BIN_HOME:$PATH
 source ~/.bashrc
 
 
@@ -90,7 +90,7 @@ source ~/.bashrc
   ```
 
 ## execute uvicorn
-uvicorn main:app --reload
+uvicorn main:app --reload --host 0.0.0.0 --port <PORTNUMBER>
 
 ## execute demo
 python demo.py

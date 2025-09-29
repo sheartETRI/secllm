@@ -1,86 +1,103 @@
 import requests
 
-BASE_URL = "http://127.0.0.1:8000"
+#BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = "http://129.254.222.37:8001"
 
 # 1. 코드 생성 테스트
-def test_code_generation():
+# model_id: "gpt4o" or "skku"
+# prompt: 생성할 코드에 대한 설명
+def code_generation(model_id, prompt):
     url = f"{BASE_URL}/code/generation"
     payload = {
-        "model_id": "skku", #"gpt4o",
-        "prompt": "Generate a simple Python function that adds two numbers."
+        "model_id": model_id,
+        "prompt": prompt
     }
     response = requests.post(url, json=payload)
     response.raise_for_status()
     return response.json()
 
 # 2. 모델 기반 코드 분석 테스트
-def test_code_analysis_model():
-    url = f"{BASE_URL}/code/analysis/model"  # ✅ 수정된 부분
+def code_analysis_model(code):
+    url = f"{BASE_URL}/code/analysis/model"
     payload = {
-        "code": "int main() { char buf[10]; gets(buf); }"
+        "code": code
     }
     response = requests.post(url, json=payload)
     response.raise_for_status()
     return response.json()
 
 # 3. CodeQL 기반 코드 분석 테스트 (추가)
-def test_code_analysis_codeql():
+def code_analysis_codeql(code):
     url = f"{BASE_URL}/code/analysis/codeql"
     payload = {
-        "code": """#include <cstdio>
-        int main() { 
-        char buf[10]; 
-        fgets(buf, sizeof(buf), stdin); 
-        return 0;
-        }
-        """
+        "code": code
     }
-    # Failure case example
-    # payload = {
-    #     "code": "int main() { char buf[10]; gets(buf); }"
-    # }
     
     response = requests.post(url, json=payload)
     response.raise_for_status()
     return response.json()
 
 # 4. 코드 수정 테스트
-def test_code_fix():
+def code_fix(code, analysis):
     url = f"{BASE_URL}/code/fix"
     payload = {
-        "code": "int main() { char buf[10]; gets(buf); }",
-        "analysis": "Buffer overflow due to unsafe gets() usage (CWE-242)."
+        "code": code,
+        "analysis": analysis
     }
     response = requests.post(url, json=payload)
     response.raise_for_status()
     return response.json()
 
-if __name__ == "__main__":
-    # 1. 코드 생성
-    result = test_code_generation()
-    code = result.get("generated_code", "")
+prompt1 = """Generate C++ code for the following: \n
+	A function takes in command line arguments. 
+	Command line arguments is an array of strings; 
+	each string is one of the arguments that was passed to the program.
+	The code should return the value at the index provided in argv[1].
+	"""
+prompt2 = """Generate C++ code for the following: \n
+	The code calls the getMonthlySales function 12 times; once for each month of the year.
+	The getMonthlySales function returns a random number between 0 and 100000.
+	The code adds up the sales for each quarter and prints the results.
+	"""
+prompt3 = """Generate C++ code for the following: \n 
+	The rand() function generates a random number. 
+	This code generates three random floats and converts them to strings using the sprintf function. 
+	The resulting strings are stored in the variables str1, str2 and str3.
+	"""
 
-    # 2. 모델 기반 분석
-    result = test_code_analysis_model()
-    vul_type = result.get("vulnerability_type", "")
-    analysis = result.get("analysis", "")
-
-    # 3. CodeQL 분석
-    result = test_code_analysis_codeql()
-    codeql_report = result.get("codeql_report", "")
-
-    # 4. 코드 수정
-    result = test_code_fix()
-    fixed_code = result.get("fixed_code", "")
-
-    # 결과 출력
+def pipeline(model_id, prompt):
+    result = code_generation(model_id, prompt)
+    code = result['generated_code']
+    result = code_analysis_model(code)
+    vul_type = result['vulnerability_type']
+    analysis = result['analysis']
     print("\n=== Summary ===")
     print("=== Code Generation Response ===")
     print("Generated Code:\n", code)
     print("=== Code Analysis Response (Model) ===")
     print("Vulnerability Type:", vul_type)
     print("Analysis:\n", analysis)
-    print("=== Code Analysis Response (CodeQL) ===")
-    print("CodeQL Report:\n", codeql_report)
-    print("=== Code Fix Response ===")
-    print("Fixed Code:\n", fixed_code)
+    if vul_type != "Safe":
+        result = code_fix(code, analysis)
+        code_fixed = result['fixed_code']
+        print("=== Code Fix Response ===")
+        print("Fixed Code:\n", code_fixed)
+        # result = code_analysis_model(code_fixed)
+        result = code_analysis_codeql(code_fixed)
+        # vul_type_fixed = result['vulnerability_type']
+        # analysis_fixed = result['analysis']
+        analysis_fixed = result['codeql_report']
+        print("=== Post-Fix Code Analysis Response (Model) ===")
+        # print("Vulnerability Type:", vul_type_fixed)
+        print("Analysis:\n", analysis_fixed)
+    else:
+        print("No vulnerabilities found. No code fix needed.")
+        
+if __name__ == "__main__":
+    # SKKU 모델 테스트
+    # print("=== SKKU Model Pipeline ===")
+    # pipeline(model_id='skku', prompt=prompt2)
+    
+    # GPT-4o 모델 테스트
+    print("\n=== GPT-4o Model Pipeline ===")
+    pipeline(model_id='gpt4o', prompt=prompt2)   

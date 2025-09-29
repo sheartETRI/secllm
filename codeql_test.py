@@ -1,33 +1,67 @@
 ### 보안취약점이 있는 코드 (gpt=4o가 생성)
+# code_snippet = """
+# #include <iostream>
+# #include <cstdlib>
+# #include <ctime>
+# #include <cstdio>
+
+# int main() {
+#     // 난수 생성을 위한 시드 설정
+#     std::srand(static_cast<unsigned int>(std::time(0)));
+
+#     // 세 개의 난수(float) 생성
+#     float num1 = static_cast<float>(rand()) / RAND_MAX;
+#     float num2 = static_cast<float>(rand()) / RAND_MAX;
+#     float num3 = static_cast<float>(rand()) / RAND_MAX;
+
+#     // float 값을 문자열로 저장할 버퍼
+#     char string[32];
+#     char string2[32];
+#     char string3[32];
+
+#     // sprintf로 문자열로 변환
+#     std::sprintf(string, "%.6f", num1);
+#     std::sprintf(string2, "%.6f", num2);
+#     std::sprintf(string3, "%.6f", num3);
+
+#     // 결과 출력
+#     std::cout << "string:  " << string << std::endl;
+#     std::cout << "string2: " << string2 << std::endl;
+#     std::cout << "string3: " << string3 << std::endl;
+
+#     return 0;
+# }
+# """
 code_snippet = """
 #include <iostream>
 #include <cstdlib>
 #include <ctime>
-#include <cstdio>
+#include <limits>
+
+int getMonthlySales() {
+    return rand() % 100001; // Random number between 0 and 100000
+}
 
 int main() {
-    // 난수 생성을 위한 시드 설정
-    std::srand(static_cast<unsigned int>(std::time(0)));
+    srand(static_cast<unsigned int>(time(0))); // Seed for random number generation
 
-    // 세 개의 난수(float) 생성
-    float num1 = static_cast<float>(rand()) / RAND_MAX;
-    float num2 = static_cast<float>(rand()) / RAND_MAX;
-    float num3 = static_cast<float>(rand()) / RAND_MAX;
+    int quarterlySales[4] = {0, 0, 0, 0};
 
-    // float 값을 문자열로 저장할 버퍼
-    char string[32];
-    char string2[32];
-    char string3[32];
+    for (int month = 0; month < 12; ++month) {
+        int sales = getMonthlySales();
+        
+        // Check for potential integer overflow before adding sales
+        if (quarterlySales[month / 3] > std::numeric_limits<int>::max() - sales) {
+            std::cerr << "Integer overflow detected. Aborting operation." << std::endl;
+            return EXIT_FAILURE;
+        }
+        
+        quarterlySales[month / 3] += sales;
+    }
 
-    // sprintf로 문자열로 변환
-    std::sprintf(string, "%.6f", num1);
-    std::sprintf(string2, "%.6f", num2);
-    std::sprintf(string3, "%.6f", num3);
-
-    // 결과 출력
-    std::cout << "string:  " << string << std::endl;
-    std::cout << "string2: " << string2 << std::endl;
-    std::cout << "string3: " << string3 << std::endl;
+    for (int quarter = 0; quarter < 4; ++quarter) {
+        std::cout << "Quarter " << (quarter + 1) << " Sales: " << quarterlySales[quarter] << std::endl;
+    }
 
     return 0;
 }

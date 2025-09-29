@@ -10,18 +10,18 @@ cd models
 sh restore.sh
 
 ## 4. Setup CodeQL
-# 4.1  **Download CodeQL CLI**:
+### 4.1  **Download CodeQL CLI**:
   Go to [CodeQL CLI GitHub Releases](https://github.com/github/codeql-cli-binaries/releases) and download the CodeQL 2.11.2 for your operating system.
   - [Linux](https://github.com/github/codeql-cli-binaries/releases/download/v2.11.2/codeql-linux64.zip)
   - [Mac](https://github.com/github/codeql-cli-binaries/releases/download/v2.11.2/codeql-osx64.zip)
   - [Windows](https://github.com/github/codeql-cli-binaries/releases/download/v2.11.2/codeql-win64.zip)
-# 4.2 **Extract the downloaded file**:
+### 4.2 **Extract the downloaded file**:
   Extract the compressed archive to a folder on your machine.
 
-# 4.3 **Set up environment variables**:
+### 4.3 **Set up environment variables**:
   Add the extracted folder to your system’s `PATH` environment variable to make CodeQL accessible from any directory.
 
-# 4.4 **Verify Installation**:
+### 4.4 **Verify Installation**:
   Run the following command to verify the installation:
 
   ```bash
@@ -36,7 +36,7 @@ sh restore.sh
 
   If installed correctly, this will display the current version of the CodeQL CLI.
 
-# 4.5 **Download CodeQL Packs**:
+### 4.5 **Download CodeQL Packs**:
   Download the CodeQL packs for the languages you want to analyze.
 
   ```bash
@@ -46,7 +46,7 @@ sh restore.sh
   $ git checkout codeql-cli/v2.11.2
   ```
 
-# 4.6. **Resolve qlpacks and language packs**:
+### 4.6. **Resolve qlpacks and language packs**:
   Run the following commands to resolve the qlpacks and language packs:
 
   ```bash
@@ -59,7 +59,7 @@ sh restore.sh
   $ codeql resolve languages
   ```
 
-# 4.7. **Copy Top25 Queries**:
+### 4.7. **Copy Top25 Queries**:
   Copy the Top25 queries from this repo to `codeql-repo`:
 
   ```bash

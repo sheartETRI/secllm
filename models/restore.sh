@@ -10,5 +10,8 @@ cat checkpoints.tgz.part.* > checkpoints.tgz
 echo "[INFO] 압축을 해제하는 중..."
 tar -xzvf checkpoints.tgz
 
-# 3. 완료 메시지
+# 3. 기존 분할된 파일 및 압축 파일 삭제
+rm -f checkpoints.tgz*
+
+# 4. 완료 메시지
 echo "[INFO] 복원이 완료되었습니다!"

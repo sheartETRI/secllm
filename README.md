@@ -1,12 +1,22 @@
 ## 1. Setup
-python -m venv venv
+### 1.1 Virtual Environment
+python -m venv venv<br>
 source venv/bin/activate
+
+### 1.2 Installation
+pip install -r requirements.txt
+
+### 1.3 OPENAI_API_KEY
+vi ~/.bashrc
+- add the following line
+export OPENAI_API_KEY='sk-(YOUR_API_KEY)'<br>
+source ~/.bashrc
 
 ## 2. download SKKU LLM model
 python download_model.py
 
 ## 3. extract SKKU Detector model
-cd models
+cd models<br>
 sh restore.sh
 
 ## 4. Setup CodeQL

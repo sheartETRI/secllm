@@ -8,8 +8,8 @@ pip install -r requirements.txt
 
 ### 1.3 OPENAI_API_KEY
 vi ~/.bashrc
-- add the following line
-export OPENAI_API_KEY='sk-(YOUR_API_KEY)'<br>
+add the following line
+- export OPENAI_API_KEY='sk-(YOUR_API_KEY)'<br>
 source ~/.bashrc
 
 ## 2. download SKKU LLM model
@@ -25,11 +25,23 @@ sh restore.sh
   - [Linux](https://github.com/github/codeql-cli-binaries/releases/download/v2.11.2/codeql-linux64.zip)
   - [Mac](https://github.com/github/codeql-cli-binaries/releases/download/v2.11.2/codeql-osx64.zip)
   - [Windows](https://github.com/github/codeql-cli-binaries/releases/download/v2.11.2/codeql-win64.zip)
+
 ### 4.2 **Extract the downloaded file**:
   Extract the compressed archive to a folder on your machine.
 
 ### 4.3 **Set up environment variables**:
-  Add the extracted folder to your system’s `PATH` environment variable to make CodeQL accessible from any directory.
+mkdir ~/codeql-home<br>
+mv codeql-linux64.zip ~/codeql-home<br>
+cd ~/codeql-home<br>
+unzip codeql-linux64.zip<br>
+Add the extracted folder to your system’s `PATH` environment variable to make CodeQL accessible from any directory.<br>
+vi ~/.bashrc<br>
+add the following lines
+- CODEQL_HOME=(YOUR_HOME_PATH)/codeql-home/codeql
+- export CODEQL_HOME
+- PATH=$CODEQL_HOME:$PATH
+source ~/.bashrc
+
 
 ### 4.4 **Verify Installation**:
   Run the following command to verify the installation:
@@ -50,7 +62,7 @@ sh restore.sh
   Download the CodeQL packs for the languages you want to analyze.
 
   ```bash
-  $ cd $CODEQL_HOME
+  $ cd ~/codeql-home
   $ git clone --recursive https://github.com/github/codeql.git codeql-repo
   $ cd codeql-repo
   $ git checkout codeql-cli/v2.11.2
@@ -73,8 +85,8 @@ sh restore.sh
   Copy the Top25 queries from this repo to `codeql-repo`:
 
   ```bash
-  $ cp -r PATH/TO/secode-ensemble/codeql-queries/cpp/top25 $CODEQL_HOME/codeql-repo/cpp/ql/src/
-  $ cp -r PATH/TO/secode-ensemble/codeql-queries/python/top25 $CODEQL_HOME/codeql-repo/python/ql/src/
+  $ cp -r PATH/TO/secllm/codeql-queries/cpp/top25 ~/codeql-home/codeql-repo/cpp/ql/src/
+  $ cp -r PATH/TO/secllm/codeql-queries/python/top25 ~/codeql-home/codeql-repo/python/ql/src/
   ```
 
 ## execute uvicorn

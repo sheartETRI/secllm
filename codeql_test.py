@@ -36,8 +36,8 @@ int main() {
 from modules.codeql_analyzer import CodeQLAnalyzer  # 위 코드를 analyzer.py로 저장했다고 가정
 
 # CodeQL 실행 처리를 위한 임시 디렉토리 (코드, DB) 설정
-code_path = "codeql_tmp/code"
-db_path = "codeql_tmp/db"
+code_path = "/home/sheart95/secllm/codeql_tmp/code"
+db_path = "/home/sheart95/secllm/codeql_tmp/db"
 
 # 사용자의 CodeQL repo 경로 지정 (예시)
 codeql_repo = "/home/sheart95/codeql-home/codeql-repo"  # 예: ~/codeql-home/codeql

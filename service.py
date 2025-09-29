@@ -6,6 +6,7 @@ from modules.utils import *
 from modules.codeql_analyzer import CodeQLAnalyzer  # 위 코드를 analyzer.py로 저장했다고 가정
 from functools import lru_cache
 import shutil
+import os
 
 rootdir = os.getcwd()
 codeql_home = "/home/sheart95/codeql-home"

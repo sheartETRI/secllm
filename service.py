@@ -7,7 +7,7 @@ from modules.codeql_analyzer import CodeQLAnalyzer  # 위 코드를 analyzer.py�
 from functools import lru_cache
 import shutil
 
-ootdir = os.getcwd()
+rootdir = os.getcwd()
 codeql_home = "/home/sheart95/codeql-home"
 # CodeQL 실행 처리를 위한 임시 디렉토리 (코드, DB) 설정
 code_path = f"{rootdir}/codeql_tmp/code"

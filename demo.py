@@ -127,7 +127,7 @@ def pipeline2(model_id, prompt):
     else:
         print("No vulnerabilities found. No code fix needed.")
         
-if __name__ == "__main__":
+if __name__ == "__main__":   
     # valid scenario 1; 프롬프트 3인경우 CodeQL 모델이 더 잘잡음
     pipeline = pipeline2
     prompt = prompt3

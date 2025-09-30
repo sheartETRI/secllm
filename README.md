@@ -90,7 +90,8 @@ source ~/.bashrc
   ```
 
 ## execute uvicorn
-uvicorn main:app --reload --host 0.0.0.0 --port <PORTNUMBER>
+uvicorn main:app --host 0.0.0.0 --port <PORTNUMBER>
 
 ## execute demo
 python demo.py
+streamlit run demo_ui.py

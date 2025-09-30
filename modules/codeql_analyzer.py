@@ -396,11 +396,13 @@ class CodeQLAnalyzer:
         """
         print("summarized_data ",summarized_data)
         if not summarized_data:
+            vul_type = "Safe"
             report = "A. Vulnerable: No\n"
             report += "B. Score: 100\n"
             report += "C. Vulnerabilities description: NO VULNERABILITIES\n"
             report += "D. CWEs of found vulnerability: None"
         else:
+            vul_type = "Vulnerable"
             report = "A. Vulnerable: Yes\n"
             no_of_vul = sum(item['no of vul'] for item in summarized_data)
             score = max(-100, -10 * no_of_vul)  # Cap at -100
@@ -422,7 +424,8 @@ class CodeQLAnalyzer:
             
             report += f"\nD. CWEs of found vulnerabilities: {', '.join(all_cwes)}"
         
-        return report
+        return vul_type, report
+    
     def analyze_code(self, code_snippet: str, language: str) -> str:
         """
         Analyze a code snippet for security vulnerabilities.
@@ -465,6 +468,7 @@ class CodeQLAnalyzer:
             )
 
             if not db_path:
+                vul_type = "Error"
                 logger.error("Failed to create CodeQL database")
                 # Check if CodeQL is installed
                 try:
@@ -487,6 +491,7 @@ class CodeQLAnalyzer:
             sarif_path = self.run_queries(db_path, language, results_file)
 
             if not sarif_path:
+                vul_type = "Error"
                 logger.error("Failed to run CodeQL queries")
                 raise RuntimeError(
                     f"Failed to run CodeQL queries. No query files (.ql) found in {self.codeql_repo_path}. "
@@ -502,7 +507,7 @@ class CodeQLAnalyzer:
 
             # Format report
             logger.debug("Formatting vulnerability report")
-            report = self.format_vulnerability_report(summarized_data)
+            vul_type, report = self.format_vulnerability_report(summarized_data)
             logger.info(f"Report generated with length: {len(report)}")
 
             # Clean up
@@ -510,7 +515,7 @@ class CodeQLAnalyzer:
             self.cleanup_files([code_path, db_path, sarif_path], language=language)
             logger.info("Cleanup completed")
 
-            return report
+            return vul_type, report
 
         except subprocess.CalledProcessError as e:
             logger.error(f"Subprocess error: {e}")

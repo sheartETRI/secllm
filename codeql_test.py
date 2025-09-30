@@ -86,14 +86,14 @@ analyzer = CodeQLAnalyzer(
 # 코드 분석 함수   
 def codeql_analyze(code: str):
     try:
-        report = analyzer.analyze_code(code, language="cpp")
-        return report
+        vul_type, report = analyzer.analyze_code(code, language="cpp")
+        return vul_type, report
     except Exception as e:
         return f"[ERROR] 분석 실패: {e}"
     
 def main():
-    report = codeql_analyze(code_snippet)
+    vul_type, report = codeql_analyze(code_snippet)
     print("=== CodeQL Analysis Report ===")
-    print(report)
+    print(vul_type, report)
     
 main()

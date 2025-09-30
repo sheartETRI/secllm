@@ -60,6 +60,7 @@ def code_generation(model_id: str, prompt: str):
 def model_code_analysis(code: str):
     detector = get_skku_detector()
     vul_type, analysis = analyze_code(detector, code)
+    print(vul_type)
     print(analysis)
     return vul_type, analysis
 
@@ -67,16 +68,20 @@ def model_code_analysis(code: str):
 def codeql_code_analysis(code: str):
     analyzer = get_codeql_analyzer()
     try:
-        report = analyzer.analyze_code(code, language="cpp")
+        vul_type, report = analyzer.analyze_code(code, language="cpp")
     except Exception as e:
+        vul_type = "Error"
         report = f"[ERROR]: CodeQL analysis failed:\n {e}"
-    finally:
         # 🔥 실행 후 임시 디렉토리 정리
+    finally:
         shutil.rmtree(code_path, ignore_errors=True)
         shutil.rmtree(db_path, ignore_errors=True)
+        os.makedirs(code_path, exist_ok=True)
+        os.makedirs(db_path, exist_ok=True)
 
+    print(vul_type)
     print(report)
-    return report
+    return vul_type, report
 
 # 3. 코드 수정
 def code_fix(code: str, analysis: str):
@@ -105,11 +110,14 @@ prompt3 = """Generate C++ code for the following: \n
 
 def main():
     prompt = prompt3
-    #model_id = 'gpt4o'
-    model_id = 'skku'
+    model_id = 'gpt4o'
+    #model_id = 'skku'
     code = code_generation(model_id, prompt)
-    # vul_type, analysis = model_code_anaysis(code)
-    analysis = codeql_code_analysis(code)
-    # code_fixed = code_fix(code, analysis)
+    #vul_type, analysis = model_code_analysis(code)
+    vul_type, analysis = codeql_code_analysis(code)
+    if vul_type != "Safe":
+        code_fixed = code_fix(code, analysis)
+        #vul_type, analysis = model_code_analysis(code)
+        vul_type, analysis = codeql_code_analysis(code_fixed)
     
-# main()
+#main()

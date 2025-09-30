@@ -16,7 +16,7 @@ def test_code_generation():
 
 # 2. 모델 기반 코드 분석 테스트
 def test_code_analysis_model():
-    url = f"{BASE_URL}/code/analysis/model"  # ✅ 수정된 부분
+    url = f"{BASE_URL}/code/analysis/model"
     payload = {
         "code": "int main() { char buf[10]; gets(buf); }"
     }
@@ -68,7 +68,8 @@ if __name__ == "__main__":
 
     # 3. CodeQL 분석
     result = test_code_analysis_codeql()
-    codeql_report = result.get("codeql_report", "")
+    vul_type = result.get("vulnerability_type", "")
+    codeql_report = result.get("analysis", "")
 
     # 4. 코드 수정
     result = test_code_fix()
@@ -82,6 +83,7 @@ if __name__ == "__main__":
     print("Vulnerability Type:", vul_type)
     print("Analysis:\n", analysis)
     print("=== Code Analysis Response (CodeQL) ===")
+    print("Vulnerability Type:", vul_type)
     print("CodeQL Report:\n", codeql_report)
     print("=== Code Fix Response ===")
     print("Fixed Code:\n", fixed_code)

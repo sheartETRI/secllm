@@ -20,7 +20,7 @@ except ImportError:
     raise
 
 DEFAULT_MODEL = "gpt-4o"  # 모델 변경 가능
-TEMPERATURE = 0.2
+TEMPERATURE = 0
 MAX_RETRIES = 3
 RETRY_BACKOFF = 2.0  
 MAX_TOKENS = 10000

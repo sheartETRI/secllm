@@ -46,8 +46,8 @@ async def analyze_code_model(req: AnalysisRequest):
 @app.post("/code/analysis/codeql")
 async def analyze_code_codeql(req: AnalysisRequest):
     try:
-        report = await run_in_thread(codeql_code_analysis, req.code)
-        return {"codeql_report": report}
+        vul_type, report = await run_in_thread(codeql_code_analysis, req.code)
+        return {"vulnerability_type": vul_type, "analysis": report}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

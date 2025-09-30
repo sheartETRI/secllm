@@ -26,7 +26,7 @@ def code_analysis_model(code):
     response.raise_for_status()
     return response.json()
 
-# 3. CodeQL 기반 코드 분석 테스트 (추가)
+# 3. CodeQL 기반 코드 분석 테스트
 def code_analysis_codeql(code):
     url = f"{BASE_URL}/code/analysis/codeql"
     payload = {
@@ -65,12 +65,15 @@ prompt3 = """Generate C++ code for the following: \n
 	The resulting strings are stored in the variables str1, str2 and str3.
 	"""
 
-def pipeline(model_id, prompt):
+# 1-2-4-2 파이프라인
+def pipeline1(model_id, prompt):
     result = code_generation(model_id, prompt)
     code = result['generated_code']
+    
     result = code_analysis_model(code)
     vul_type = result['vulnerability_type']
     analysis = result['analysis']
+    
     print("\n=== Summary ===")
     print("=== Code Generation Response ===")
     print("Generated Code:\n", code)
@@ -80,23 +83,55 @@ def pipeline(model_id, prompt):
     if vul_type != "Safe":
         result = code_fix(code, analysis)
         code_fixed = result['fixed_code']
+        
         print("=== Code Fix Response ===")
         print("Fixed Code:\n", code_fixed)
-        # result = code_analysis_model(code_fixed)
-        result = code_analysis_codeql(code_fixed)
-        # vul_type_fixed = result['vulnerability_type']
-        # analysis_fixed = result['analysis']
-        analysis_fixed = result['codeql_report']
+        result = code_analysis_model(code_fixed)  
+        vul_type_fixed = result['vulnerability_type']
+        analysis_fixed = result['analysis']
+ 
         print("=== Post-Fix Code Analysis Response (Model) ===")
-        # print("Vulnerability Type:", vul_type_fixed)
+        print("Vulnerability Type:", vul_type_fixed)
+        print("Analysis:\n", analysis_fixed)
+    else:
+        print("No vulnerabilities found. No code fix needed.")
+
+# 1-3-4-3 파이프라인
+def pipeline2(model_id, prompt):
+    result = code_generation(model_id, prompt)
+    code = result['generated_code']
+    
+    result = code_analysis_codeql(code)
+    vul_type = result['vulnerability_type']
+    analysis = result['analysis']
+    
+    print("\n=== Summary ===")
+    print("=== Code Generation Response ===")
+    print("Generated Code:\n", code)
+    print("=== Code Analysis Response (Model) ===")
+    print("Vulnerability Type:", vul_type)
+    print("Analysis:\n", analysis)
+    if vul_type != "Safe":
+        result = code_fix(code, analysis)
+        code_fixed = result['fixed_code']
+        
+        print("=== Code Fix Response ===")
+        print("Fixed Code:\n", code_fixed)
+        result = code_analysis_codeql(code_fixed)
+        vul_type_fixed = result['vulnerability_type']
+        analysis_fixed = result['analysis']
+ 
+        print("=== Post-Fix Code Analysis Response (Model) ===")
+        print("Vulnerability Type:", vul_type_fixed)
         print("Analysis:\n", analysis_fixed)
     else:
         print("No vulnerabilities found. No code fix needed.")
         
 if __name__ == "__main__":
+    pipeline = pipeline1
     # SKKU 모델 테스트
-    # print("=== SKKU Model Pipeline ===")
-    # pipeline(model_id='skku', prompt=prompt2)
+    print("=== SKKU Model Pipeline ===")
+    pipeline(model_id='skku', prompt=prompt2)
     
     # GPT-4o 모델 테스트
     print("\n=== GPT-4o Model Pipeline ===")

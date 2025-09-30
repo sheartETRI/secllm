@@ -1,7 +1,7 @@
 import requests
 
 #BASE_URL = "http://127.0.0.1:8000"
-BASE_URL = "http://129.254.222.37:8001"
+BASE_URL = "http://129.254.222.37:8004"
 
 # 1. 코드 생성 테스트
 def test_code_generation():

@@ -1,23 +1,33 @@
 ## 1. Setup
 ### 1.1 Virtual Environment
-python -m venv venv<br>
-source venv/bin/activate
+  ```bash
+  $ python -m venv venv<br>
+  $ source venv/bin/activate
+  ```
 
 ### 1.2 Installation
-pip install -r requirements.txt
+  ```bash
+  $ pip install -r requirements.txt
+  ```
 
 ### 1.3 OPENAI_API_KEY
-vi ~/.bashrc
-add the following line
-- export OPENAI_API_KEY='sk-(YOUR_API_KEY)'<br>
-source ~/.bashrc
+  ```bash
+  $ vi ~/.bashrc
+  Add the following line
+- export OPENAI_API_KEY='sk-(YOUR_API_KEY)'
+  $ source ~/.bashrc
+  ```
 
 ## 2. download SKKU LLM model
-python download_model.py
+  ```bash 
+  $ python download_model.py
+  ```
 
 ## 3. extract SKKU Detector model
-cd models<br>
-sh restore.sh
+  ```bash
+  $ cd models
+  $ sh restore.sh
+  ```
 
 ## 4. Setup CodeQL
 ### 4.1  **Download CodeQL CLI**:
@@ -30,17 +40,28 @@ sh restore.sh
   Extract the compressed archive to a folder on your machine.
 
 ### 4.3 **Set up environment variables**:
-mkdir ~/codeql-home<br>
-mv codeql-linux64.zip ~/codeql-home<br>
-cd ~/codeql-home<br>
-unzip codeql-linux64.zip<br>
+  ```bash
+  $ mkdir ~/codeql-home
+  $ mv codeql-linux64.zip ~/codeql-home
+  $ cd ~/codeql-home
+  $ unzip codeql-linux64.zip
+  ```
+
 Add the extracted folder to your system’s `PATH` environment variable to make CodeQL accessible from any directory.<br>
-vi ~/.bashrc<br>
-add the following lines
-- CODEQL_BIN_HOME=(YOUR_HOME_PATH)/codeql-home/codeql
+  ```bash
+  $ vi ~/.bashrc
+  ```
+
+Add the following lines
+- CODEQL_HOME=~/codeql-home
+- export CODEQL_HOME
+- CODEQL_BIN_HOME=~/codeql-home/codeql
 - export CODEQL_BIN_HOME
 - PATH=$CODEQL_BIN_HOME:$PATH
-source ~/.bashrc
+
+  ```bash
+  $ source ~/.bashrc
+  ```
 
 
 ### 4.4 **Verify Installation**:
@@ -72,7 +93,7 @@ source ~/.bashrc
   Run the following commands to resolve the qlpacks and language packs:
 
   ```bash
-  $ cd $CODEQL_HOME
+  $ cd ~/codeql-home
   $ ls -al
   ...
   drwxr-xr-x 17 jan087 jan087  310 Oct 24  2022 codeql

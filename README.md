@@ -18,12 +18,12 @@
   $ source ~/.bashrc
   ```
 
-## 2. download SKKU LLM model
+## 2. Download SKKU LLM model
   ```bash 
   $ python download_model.py
   ```
 
-## 3. extract SKKU Detector model
+## 3. Extract SKKU Detector model
   ```bash
   $ cd models
   $ sh restore.sh
@@ -110,9 +110,14 @@ Add the following lines
   $ cp -r PATH/TO/secllm/codeql-queries/python/top25 ~/codeql-home/codeql-repo/python/ql/src/
   ```
 
-## execute uvicorn
-uvicorn main:app --host 0.0.0.0 --port <PORTNUMBER>
+## Execute uvicorn (Restful API Service)
+  ```bash
+  $ uvicorn main:app --host 0.0.0.0 --port <PORTNUMBER>
+  ```
 
-## execute demo
-python demo.py
-streamlit run demo_ui.py
+## Execute demo (Test if service is running)
+  ```bash
+  $ python demo.py
+  <OR>
+  $ streamlit run demo_ui.py
+  ```

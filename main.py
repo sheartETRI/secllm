@@ -1,7 +1,10 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import asyncio
-from service import (code_generation, model_code_analysis, codeql_code_analysis, code_fix)
+from service import (code_generation, model_code_analysis, codeql_code_analysis, code_fix, pipeline)
+from service import pipeline_stream
+import json
 
 app = FastAPI(title="Code Service API")
     
@@ -19,6 +22,13 @@ class AnalysisRequest(BaseModel):
 class FixRequest(BaseModel):
     code: str
     analysis: str
+    
+class PipelineRequest(BaseModel):
+    model_id: str
+    prompt: str
+    model_config = {
+        "protected_namespaces": ()
+    }
 
 # 블로킹 함수 비동기 실행 helper
 async def run_in_thread(func, *args):
@@ -59,3 +69,21 @@ async def fix_code(req: FixRequest):
         return {"fixed_code": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# 4. 파이프라인 API
+@app.post("/code/pipeline")
+async def run_pipeline(req: PipelineRequest):
+    try:
+        code, vul_type, analysis, code_fixed, vul_type_fixed, analysis_fixed = await run_in_thread(pipeline, req.model_id, req.prompt)
+        return {"code": code, "vul_type": vul_type, "analysis": analysis, "code_fixed": code_fixed, "vul_type_fixed": vul_type_fixed, "analysis_fixed": analysis_fixed}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+# 5. 스트리밍 파이프라인 API
+@app.post("/code/pipeline/stream")
+async def run_pipeline_stream(req: PipelineRequest):
+    async def event_generator():
+        async for item in pipeline_stream(req.model_id, req.prompt):
+            yield json.dumps(item) + "\n"   # 줄바꿈으로 chunk 구분
+    return StreamingResponse(event_generator(), media_type="application/json")

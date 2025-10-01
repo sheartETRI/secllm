@@ -119,5 +119,5 @@ Add the following lines
   ```bash
   $ python demo.py
   <OR>
-  $ streamlit run demo_ui.py
+  $ streamlit run demo_ui_pipe.py
   ```

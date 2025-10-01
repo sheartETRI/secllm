@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import asyncio
 from service import (code_generation, model_code_analysis, codeql_code_analysis, code_fix, pipeline)
-from service import pipeline_stream
+from service import (pipeline_stream, code_generation_pipeline_stream, code_fix_pipeline_stream)
 import json
 
 app = FastAPI(title="Code Service API")
@@ -79,11 +79,27 @@ async def run_pipeline(req: PipelineRequest):
         return {"code": code, "vul_type": vul_type, "analysis": analysis, "code_fixed": code_fixed, "vul_type_fixed": vul_type_fixed, "analysis_fixed": analysis_fixed}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
+
 # 5. 스트리밍 파이프라인 API
 @app.post("/code/pipeline/stream")
 async def run_pipeline_stream(req: PipelineRequest):
     async def event_generator():
         async for item in pipeline_stream(req.model_id, req.prompt):
+            yield json.dumps(item) + "\n"   # 줄바꿈으로 chunk 구분
+    return StreamingResponse(event_generator(), media_type="application/json")
+
+# 5. 스트리밍 코드 생성 파이프라인 API
+@app.post("/code/pipeline/generation_stream")
+async def run_generation_pipeline_stream(req: PipelineRequest):
+    async def event_generator():
+        async for item in code_generation_pipeline_stream(req.model_id, req.prompt):
+            yield json.dumps(item) + "\n"   # 줄바꿈으로 chunk 구분
+    return StreamingResponse(event_generator(), media_type="application/json")
+
+# 6. 스트리밍 코드 수정 파이프라인 API
+@app.post("/code/pipeline/fix_stream")
+async def run_fix_pipeline_stream(req: FixRequest):
+    async def event_generator():
+        async for item in code_fix_pipeline_stream(req.code, req.analysis):
             yield json.dumps(item) + "\n"   # 줄바꿈으로 chunk 구분
     return StreamingResponse(event_generator(), media_type="application/json")

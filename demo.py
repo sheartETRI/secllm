@@ -1,8 +1,8 @@
 import requests
 import json
 
-BASE_URL = "http://127.0.0.1:8000" # Local server
-# BASE_URL = "http://129.254.222.37:8004"
+#BASE_URL = "http://127.0.0.1:8000" # Local server
+BASE_URL = "http://129.254.222.37:8004"
 
 # 1. 코드 생성 테스트
 # model_id: "gpt4o" or "skku"
@@ -193,7 +193,68 @@ def pipeline_stream_func(model_id, prompt):
             elif stage == "done":
                 print("\n[Stage: Done]")
                 print(item.get("message"))
+
+def pipeline_generation_stream_func(model_id, prompt):
+    url = f"{BASE_URL}/code/pipeline/generation_stream"
+    payload = {
+        "model_id": model_id,
+        "prompt": prompt
+    }
+    response = requests.post(url, json=payload, stream=True)
+    response.raise_for_status()
     
+    code_value, vul_type_value, analysis_value = None, None, None
+    
+    print("\n=== Streaming Code Generation Pipeline Response ===")
+    for line in response.iter_lines():
+        if line:
+            item = json.loads(line)
+            stage = item.get("stage")
+            if stage == "generation":
+                code_value = item.get("code")
+                print("\n[Stage: Code Generation]")
+                print("Generated Code:\n", item.get("code"))
+            elif stage == "analysis":
+                vul_type_value = item.get("vul_type")
+                analysis_value = item.get("analysis")
+                print("\n[Stage: Code Analysis]")
+                print("Vulnerability Type:", item.get("vul_type"))
+                print("Analysis:\n", item.get("analysis"))
+            elif stage == "done":
+                print("\n[Stage: Done]")
+                print(item.get("message"))
+    return code_value, vul_type_value, analysis_value
+                
+def pipeline_fix_stream_func(code, analysis):
+    url = f"{BASE_URL}/code/pipeline/fix_stream"
+    payload = {
+        "code": code,
+        "analysis": analysis
+    }
+    response = requests.post(url, json=payload, stream=True)
+    response.raise_for_status()
+    
+    code_fixed_value, vul_type_fixed_value, analysis_fixed_value = None, None, None
+    
+    print("\n=== Streaming Code Fix Pipeline Response ===")
+    for line in response.iter_lines():
+        if line:
+            item = json.loads(line)
+            stage = item.get("stage")
+            if stage == "fix":
+                code_fixed_value = item.get("code_fixed")
+                print("\n[Stage: Code Fix]")
+                print("Fixed Code:\n", item.get("code_fixed"))
+            elif stage == "postfix_analysis":
+                vul_type_fixed_value = item.get("vul_type_fixed")
+                analysis_fixed_value = item.get("analysis_fixed")
+                print("\n[Stage: Post-Fix Code Analysis]")
+                print("Vulnerability Type:", item.get("vul_type_fixed"))
+                print("Analysis:\n", item.get("analysis_fixed"))
+            elif stage == "done":
+                print("\n[Stage: Done]")
+                print(item.get("message"))
+    return code_fixed_value, vul_type_fixed_value, analysis_fixed_value
 
 if __name__ == "__main__":   
     # valid scenario 1; 프롬프트 3인경우 CodeQL 모델이 더 잘잡음    
@@ -201,9 +262,11 @@ if __name__ == "__main__":
     
     # # SKKU 모델 테스트
     print("=== SKKU Model Pipeline ===")
-    pipeline_stream_func(model_id='skku', prompt=prompt)
+    # pipeline_generation_stream_func(model_id='skku', prompt=prompt)
     
     print("\n\n")    
     # GPT-4o 모델 테스트
-    # print("\n=== GPT-4o Model Pipeline ===")
-    # pipeline_stream_func(model_id='gpt4o', prompt=prompt)   
+    print("\n=== GPT-4o Model Pipeline ===")
+    code, vul_type, analysis = pipeline_generation_stream_func(model_id='gpt4o', prompt=prompt)
+    # import pdb; pdb.set_trace()
+    fixed_code, fixed_vul_type, fixed_analysis = pipeline_fix_stream_func(code, analysis)

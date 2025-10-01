@@ -119,6 +119,7 @@ def pipeline(model_id, prompt):
     return code, vul_type, analysis, code_fixed, vul_type_fixed, analysis_fixed
 
 # service.py
+# 전체 스트리밍 파이프라인
 async def pipeline_stream(model_id, prompt):
     # 1. 코드 생성
     code = code_generation(model_id, prompt)
@@ -137,6 +138,27 @@ async def pipeline_stream(model_id, prompt):
         yield {"stage": "postfix_analysis", "vul_type_fixed": vul_type_fixed, "analysis_fixed": analysis_fixed}
     else:
         yield {"stage": "done", "message": "No vulnerabilities found."}
+
+# 스트리밍 코드 생성 파이프라인
+async def code_generation_pipeline_stream(model_id, prompt):
+    # 1. 코드 생성
+    code = code_generation(model_id, prompt)
+    yield {"stage": "generation", "code": code}
+
+    # 2. 취약점 분석
+    vul_type, analysis = codeql_code_analysis(code)
+    yield {"stage": "analysis", "vul_type": vul_type, "analysis": analysis}
+
+# 스트리밍 코드 수정 파이프라인
+async def code_fix_pipeline_stream(code, analysis):
+    # 3. 코드 수정 (취약점 있을 경우)
+    code_fixed = code_fix(code, analysis)
+    yield {"stage": "fix", "code_fixed": code_fixed}
+
+    # 4. 수정된 코드 재분석
+    vul_type_fixed, analysis_fixed = codeql_code_analysis(code_fixed)
+    yield {"stage": "postfix_analysis", "vul_type_fixed": vul_type_fixed, "analysis_fixed": analysis_fixed}
+
 
 prompt1 = """Generate C++ code for the following: \n
 	A function takes in command line arguments. 

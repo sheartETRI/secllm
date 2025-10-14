@@ -429,91 +429,74 @@ class CodeQLAnalyzer:
     def analyze_code(self, code_snippet: str, language: str) -> str:
         """
         Analyze a code snippet for security vulnerabilities.
-
-        Args:
-            code_snippet: The code to analyze
-            language: Programming language ('python', 'c', 'cpp', etc.)
-
-        Returns:
-            Formatted vulnerability report
         """
         try:
-            # Generate a unique ID for this analysis
-            import uuid
+            import uuid, tempfile
             analysis_id = str(uuid.uuid4())[:8]
             logger.info(f"Starting code analysis with ID: {analysis_id} for language: {language}")
 
-            # Save the code snippet
-            lang_dir = os.path.join(self.code_path, language.lower())
-            logger.debug(f"Creating language directory: {lang_dir}")
-            os.makedirs(lang_dir, exist_ok=True)
+            # 1) 요청별 고유 작업 디렉터리 생성
+            lang_root = os.path.join(self.code_path, language.lower())
+            analysis_dir = os.path.join(lang_root, f"analysis_{analysis_id}")
+            os.makedirs(analysis_dir, exist_ok=True)
+            logger.info(f"[ANALYSIS DIR] {analysis_dir}")
 
-            # Save code snippet to file
-            logger.debug(f"Saving code snippet of length {len(code_snippet)} to file")
-            code_path = self.save_code_snippet(code_snippet, language, f"code_{analysis_id}")
-            logger.info(f"Code saved to: {code_path}")
+            # 2) 코드 저장 (save_code_snippet 대신 '해당 분석 디렉터리'에 직접 저장)
+            ext = self._get_file_extension(language)
+            code_file = os.path.join(analysis_dir, f"code_{analysis_id}{ext}")
+            with open(code_file, "w") as f:
+                f.write(code_snippet)
+            logger.info(f"Code saved to: {code_file}")
 
-            # For C/C++, create a Makefile
+            # 3) C/C++ 인 경우에만 Makefile 생성 (작업 디렉터리 기준)
             if language.lower() in ['c', 'cpp']:
-                logger.debug(f"Creating Makefile for {language} project")
-                self.create_makefile(os.path.dirname(code_path))
-                logger.info(f"Makefile created in {os.path.dirname(code_path)}")
+                self.create_makefile(analysis_dir)
+                logger.info(f"Makefile created in {analysis_dir}")
 
-            # Create a CodeQL database
+            # 4) 고유 DB 경로 구성
+            db_path = os.path.join(self.database_path, f"db_{language}_{analysis_id}")
+
+            # 5) CodeQL DB 생성 (source_root = analysis_dir)
             logger.debug(f"Creating CodeQL database for {language}")
-            db_path = self.create_codeql_database(
-                language,
-                os.path.dirname(code_path),
-                f"db_{language}_{analysis_id}"
-            )
-
-            if not db_path:
-                vul_type = "Error"
+            created_db = self.create_codeql_database(language, analysis_dir, f"db_{language}_{analysis_id}")
+            if not created_db:
                 logger.error("Failed to create CodeQL database")
-                # Check if CodeQL is installed
+                # codeql 설치 확인(로그용)
                 try:
-                    logger.debug("Checking if CodeQL is installed")
-                    result = subprocess.run(['codeql', '--version'], check=True, capture_output=True, timeout=30)
-                    logger.debug(f"CodeQL version: {result.stdout.decode().strip()}")
+                    subprocess.run(['codeql', '--version'], check=True, capture_output=True, timeout=30)
                 except Exception as e:
-                    logger.error(f"CodeQL not found or not working: {e}")
                     raise RuntimeError(f"Failed to create CodeQL database. Error: CodeQL not found or not working: {e}")
-
                 raise RuntimeError(
-                    "Failed to create CodeQL database. The database creation process timed out or failed. Please try with a smaller code sample."
+                    "Failed to create CodeQL database. The database creation process timed out or failed. "
+                    "Please try with a smaller code sample."
                 )
+            logger.info(f"CodeQL database created at: {created_db}")
 
-            logger.info(f"CodeQL database created at: {db_path}")
-
-            # Run queries
-            logger.debug(f"Running CodeQL queries on database: {db_path}")
+            # 6) 쿼리 실행 (결과 파일도 고유 id 사용)
             results_file = os.path.join(self.database_path, f"results_{analysis_id}.sarif")
-            sarif_path = self.run_queries(db_path, language, results_file)
-
+            sarif_path = self.run_queries(created_db, language, results_file)
             if not sarif_path:
-                vul_type = "Error"
                 logger.error("Failed to run CodeQL queries")
                 raise RuntimeError(
                     f"Failed to run CodeQL queries. No query files (.ql) found in {self.codeql_repo_path}. "
                     "Please ensure CodeQL is properly installed with query packs."
                 )
-
             logger.info(f"CodeQL queries completed, results saved to: {sarif_path}")
 
-            # Process results
-            logger.debug(f"Processing SARIF results from: {sarif_path}")
+            # 7) 결과 처리/리포트 생성
             summarized_data = self.process_sarif_results(sarif_path)
-            logger.info(f"Processed {len(summarized_data)} vulnerability findings")
-
-            # Format report
-            logger.debug("Formatting vulnerability report")
             vul_type, report = self.format_vulnerability_report(summarized_data)
-            logger.info(f"Report generated with length: {len(report)}")
 
-            # Clean up
-            logger.debug("Cleaning up temporary files")
-            self.cleanup_files([code_path, db_path, sarif_path], language=language)
-            logger.info("Cleanup completed")
+            # 8) 정리 (이번 분석에 속한 경로만 제거)
+            try:
+                if os.path.isdir(analysis_dir):
+                    shutil.rmtree(analysis_dir, ignore_errors=True)
+                if os.path.isdir(created_db):
+                    shutil.rmtree(created_db, ignore_errors=True)
+                if os.path.isfile(sarif_path):
+                    os.remove(sarif_path)
+            except Exception as e:
+                logger.warning(f"Cleanup warning: {e}")
 
             return vul_type, report
 
@@ -525,13 +508,129 @@ class CodeQLAnalyzer:
                 logger.error(f"Stdout: {e.stdout.decode() if isinstance(e.stdout, bytes) else e.stdout}")
             if e.stderr:
                 logger.error(f"Stderr: {e.stderr.decode() if isinstance(e.stderr, bytes) else e.stderr}")
-            raise  # Re-raise to propagate error
-
+            raise
         except Exception as e:
             logger.error(f"Error analyzing code: {e}")
             logger.error(f"Error type: {type(e).__name__}")
             logger.error(f"Error traceback: {traceback.format_exc()}")
-            raise  # Re-raise to propagate error
+            # 실패하더라도 분석 디렉터리/DB는 가급적 정리
+            try:
+                if 'analysis_dir' in locals() and os.path.isdir(analysis_dir):
+                    shutil.rmtree(analysis_dir, ignore_errors=True)
+                if 'created_db' in locals() and created_db and os.path.isdir(created_db):
+                    shutil.rmtree(created_db, ignore_errors=True)
+                if 'sarif_path' in locals() and sarif_path and os.path.isfile(sarif_path):
+                    os.remove(sarif_path)
+            except Exception:
+                pass
+            raise
+
+    # def analyze_code(self, code_snippet: str, language: str) -> str:
+    #     """
+    #     Analyze a code snippet for security vulnerabilities.
+
+    #     Args:
+    #         code_snippet: The code to analyze
+    #         language: Programming language ('python', 'c', 'cpp', etc.)
+
+    #     Returns:
+    #         Formatted vulnerability report
+    #     """
+    #     try:
+    #         # Generate a unique ID for this analysis
+    #         import uuid
+    #         analysis_id = str(uuid.uuid4())[:8]
+    #         logger.info(f"Starting code analysis with ID: {analysis_id} for language: {language}")
+
+    #         # Save the code snippet
+    #         lang_dir = os.path.join(self.code_path, language.lower())
+    #         logger.debug(f"Creating language directory: {lang_dir}")
+    #         os.makedirs(lang_dir, exist_ok=True)
+
+    #         # Save code snippet to file
+    #         logger.debug(f"Saving code snippet of length {len(code_snippet)} to file")
+    #         code_path = self.save_code_snippet(code_snippet, language, f"code_{analysis_id}")
+    #         logger.info(f"Code saved to: {code_path}")
+
+    #         # For C/C++, create a Makefile
+    #         if language.lower() in ['c', 'cpp']:
+    #             logger.debug(f"Creating Makefile for {language} project")
+    #             self.create_makefile(os.path.dirname(code_path))
+    #             logger.info(f"Makefile created in {os.path.dirname(code_path)}")
+
+    #         # Create a CodeQL database
+    #         logger.debug(f"Creating CodeQL database for {language}")
+    #         db_path = self.create_codeql_database(
+    #             language,
+    #             os.path.dirname(code_path),
+    #             f"db_{language}_{analysis_id}"
+    #         )
+
+    #         if not db_path:
+    #             vul_type = "Error"
+    #             logger.error("Failed to create CodeQL database")
+    #             # Check if CodeQL is installed
+    #             try:
+    #                 logger.debug("Checking if CodeQL is installed")
+    #                 result = subprocess.run(['codeql', '--version'], check=True, capture_output=True, timeout=30)
+    #                 logger.debug(f"CodeQL version: {result.stdout.decode().strip()}")
+    #             except Exception as e:
+    #                 logger.error(f"CodeQL not found or not working: {e}")
+    #                 raise RuntimeError(f"Failed to create CodeQL database. Error: CodeQL not found or not working: {e}")
+
+    #             raise RuntimeError(
+    #                 "Failed to create CodeQL database. The database creation process timed out or failed. Please try with a smaller code sample."
+    #             )
+
+    #         logger.info(f"CodeQL database created at: {db_path}")
+
+    #         # Run queries
+    #         logger.debug(f"Running CodeQL queries on database: {db_path}")
+    #         results_file = os.path.join(self.database_path, f"results_{analysis_id}.sarif")
+    #         sarif_path = self.run_queries(db_path, language, results_file)
+
+    #         if not sarif_path:
+    #             vul_type = "Error"
+    #             logger.error("Failed to run CodeQL queries")
+    #             raise RuntimeError(
+    #                 f"Failed to run CodeQL queries. No query files (.ql) found in {self.codeql_repo_path}. "
+    #                 "Please ensure CodeQL is properly installed with query packs."
+    #             )
+
+    #         logger.info(f"CodeQL queries completed, results saved to: {sarif_path}")
+
+    #         # Process results
+    #         logger.debug(f"Processing SARIF results from: {sarif_path}")
+    #         summarized_data = self.process_sarif_results(sarif_path)
+    #         logger.info(f"Processed {len(summarized_data)} vulnerability findings")
+
+    #         # Format report
+    #         logger.debug("Formatting vulnerability report")
+    #         vul_type, report = self.format_vulnerability_report(summarized_data)
+    #         logger.info(f"Report generated with length: {len(report)}")
+
+    #         # Clean up
+    #         logger.debug("Cleaning up temporary files")
+    #         self.cleanup_files([code_path, db_path, sarif_path], language=language)
+    #         logger.info("Cleanup completed")
+
+    #         return vul_type, report
+
+    #     except subprocess.CalledProcessError as e:
+    #         logger.error(f"Subprocess error: {e}")
+    #         logger.error(f"Command: {e.cmd}")
+    #         logger.error(f"Return code: {e.returncode}")
+    #         if e.stdout:
+    #             logger.error(f"Stdout: {e.stdout.decode() if isinstance(e.stdout, bytes) else e.stdout}")
+    #         if e.stderr:
+    #             logger.error(f"Stderr: {e.stderr.decode() if isinstance(e.stderr, bytes) else e.stderr}")
+    #         raise  # Re-raise to propagate error
+
+    #     except Exception as e:
+    #         logger.error(f"Error analyzing code: {e}")
+    #         logger.error(f"Error type: {type(e).__name__}")
+    #         logger.error(f"Error traceback: {traceback.format_exc()}")
+    #         raise  # Re-raise to propagate error
 
     def cleanup_files(self, file_paths: List[str], language: str = None) -> None:
         """

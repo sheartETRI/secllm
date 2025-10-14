@@ -1,6 +1,6 @@
 models/checkpoints/
 models/llama-3.1-8b-finetuned/
-tmp/
+.tmp/
 venv/
 codeql_tmp/
 __pycache__

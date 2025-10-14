@@ -4,6 +4,11 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 from huggingface_hub import snapshot_download
 import os
 
+from transformers import TextIteratorStreamer
+import threading
+from typing import AsyncGenerator
+import asyncio
+
 def apply_template(tokenizer, prompt_text: str) -> str:
     return tokenizer.apply_chat_template(
         [{"role": "user", "content": prompt_text}],
@@ -120,6 +125,53 @@ class SKKU_Model:
         code = generate_one(self.model, self.tokenizer, prompt, max_input_len=1536, max_new_tokens=512)
         # print(code)
         return code
+    
+    async def infer_model_stream(self, prompt: str, max_input_len=1536, max_new_tokens=512) -> AsyncGenerator[str, None]:
+        templated = apply_template(self.tokenizer, prompt)
+        inputs = self.tokenizer(
+            templated,
+            return_tensors="pt",
+            padding=False,
+            truncation=True,
+            max_length=max_input_len,
+        )
+        for k in inputs:
+            inputs[k] = inputs[k].to(self.model.device)
+
+        # TextIteratorStreamer: 새 토큰이 생성될 때마다 push
+        streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
+
+        gen_kwargs = dict(
+            **inputs,
+            max_new_tokens=max_new_tokens,
+            pad_token_id=self.tokenizer.pad_token_id,
+            eos_token_id=self.tokenizer.eos_token_id,
+            do_sample=False,
+            num_beams=1,
+            temperature=0.0,
+            top_p=1.0,
+            top_k=0,
+            repetition_penalty=1.0,
+            no_repeat_ngram_size=0,
+            use_cache=True,
+            return_dict_in_generate=True,
+            streamer=streamer,
+        )
+
+        # generate는 동기이므로, 별도 스레드에서 실행
+        thread = threading.Thread(target=self.model.generate, kwargs=gen_kwargs)
+        thread.start()
+
+        loop = asyncio.get_event_loop()
+        # streamer는 동기 이터레이터 → 토큰 나오는 대로 비동기로 래핑하여 전달
+        def _consume():
+            for piece in streamer:
+                yield piece
+
+        # 동기 제너레이터를 리스트화해 한 번에 꺼내지 말고, 순차적으로 전달
+        # 아래는 간단한 폴링 패턴 (필요시 asyncio.Queue로 변경 가능)
+        for piece in await loop.run_in_executor(None, lambda: list(_consume())):
+            yield piece
         
 def main():
 	prompt = """Generate C++ code for the following: \n

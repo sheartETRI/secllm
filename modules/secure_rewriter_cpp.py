@@ -5,6 +5,7 @@
   python3 secure_rewriter_cpp.py --code test_code.cpp --cwe test_CWE.txt --out test_code_fixed.cpp
 """
 
+import asyncio
 import argparse
 import os
 import re
@@ -12,6 +13,9 @@ import sys
 import json
 import time
 from difflib import unified_diff
+from modules.utils import remove_cpp_codeblock
+
+PREFERRED_LANGS = {"cpp", "c++", "cc", "cxx", "c"}
 
 try:
     import openai
@@ -181,7 +185,200 @@ def secure_rewriter(code, cwe, model=DEFAULT_MODEL, temperature=TEMPERATURE):
 
     fixed_code = extract_code_from_response(text)
     return fixed_code
+
+def build_prompt_for_stream(code: str, cwe_findings):
+    """
+    build_prompt(...)와 동일한 시스템/유저 프롬프트를 반환.
+    서비스 레이어에서 스트리밍 호출 시 이 함수를 사용.
+    """
+    # 이미 존재하는 빌더를 그대로 재사용합니다.
+    return build_prompt(code, cwe_findings)  # 
+
+async def stream_fixed_code_tokens(
+    system_prompt: str,
+    user_prompt: str,
+    model: str = DEFAULT_MODEL,
+    temperature: float = TEMPERATURE,
+    debug_delay_sec: float = 0.0,
+):
+    """
+    OpenAI 스트리밍 응답에서 ```cpp ... ``` 코드블록 내부 텍스트만 토큰 단위로 yield.
+    """
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user",   "content": user_prompt},
+    ]
+
+    # 1) 스트림 핸들 확보 (v1 클라이언트 또는 레거시)
+    def _start_stream_sync():
+        if client is not None:
+            return client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=MAX_TOKENS,
+                stream=True,
+            )
+        else:
+            # 구버전 OpenAI SDK 대응
+            return openai.ChatCompletion.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=MAX_TOKENS,
+                stream=True,
+            )
+
+    # 2) fence(코드블록) 상태 관리하면서 동기 이터레이터 소비
+    fence_pattern = re.compile(r"```(?:cpp|c\+\+)?\s*$", re.IGNORECASE)
+
+    # def _iter_code_tokens_sync():
+    #     in_code_block = False
+    #     fence_open_seen = False
+    #     stream = _start_stream_sync()
+
+    #     for ch in stream:
+    #         # v1: ch.choices[0].delta.content, 구버전: ch["choices"][0]["delta"]["content"]
+    #         content = None
+    #         try:
+    #             content = getattr(ch.choices[0].delta, "content", None)
+    #         except Exception:
+    #             try:
+    #                 content = ch["choices"][0]["delta"].get("content")
+    #             except Exception:
+    #                 content = None
+
+    #         if not content:
+    #             continue
+
+    #         lines = content.splitlines(keepends=True)
+    #         out_buf = []
+    #         for ln in lines:
+    #             if not fence_open_seen:
+    #                 if fence_pattern.match(ln.strip()):
+    #                     fence_open_seen = True
+    #                     in_code_block = True
+    #                     # fence 라인은 방출하지 않음
+    #                 # fence 전 텍스트는 무시
+    #             else:
+    #                 if fence_pattern.match(ln.strip()):
+    #                     # 닫는 fence
+    #                     in_code_block = False
+    #                     # fence 라인은 방출하지 않음
+    #                 else:
+    #                     if in_code_block:
+    #                         out_buf.append(ln)
+
+    #         if out_buf:
+    #             yield "".join(out_buf)
+
+    #         # 닫는 fence까지 본 경우 종료
+    #         if fence_open_seen and not in_code_block:
+    #             break
     
+    def _iter_code_tokens_sync():
+        in_code_block = False
+        fence_open_seen = False
+        first_line_after_open = False  # ★ 추가: 여는 펜스 직후 첫 줄 여부
+        stream = _start_stream_sync()
+
+        for ch in stream:
+            # v1 / legacy 호환 content 추출 (기존 그대로)
+            content = None
+            try:
+                content = getattr(ch.choices[0].delta, "content", None)
+            except Exception:
+                try:
+                    content = ch["choices"][0]["delta"].get("content")
+                except Exception:
+                    content = None
+            if not content:
+                continue
+
+            lines = content.splitlines(keepends=True)
+            out_buf = []
+            for ln in lines:
+                s = ln.strip()
+
+                # 1) 아직 펜스를 못 봤을 때: 여는 펜스 라인 찾기
+                if not fence_open_seen:
+                    # 여는 펜스(`````, "```cpp") 모두 감지
+                    if fence_pattern.match(s):           # ```  또는  ```cpp
+                        fence_open_seen = True
+                        in_code_block = True
+                        first_line_after_open = True     # ★ 다음 줄만 언어 태그일 수 있음
+                    # 펜스 전의 다른 텍스트는 무시
+                    continue
+
+                # 2) 펜스를 이미 본 상태
+                # 2-1) 닫는 펜스면 종료
+                if fence_pattern.match(s):               # ```  또는  ```cpp (닫힘)
+                    in_code_block = False
+                    # fence 라인은 방출하지 않음
+                    continue
+
+                # 2-2) 코드 본문 처리
+                if in_code_block:
+                    if first_line_after_open:
+                        # ★ 여는 펜스 직후 한 줄이 'cpp', 'c++' 등 언어 태그로 따로 떨어져 온 경우 무시
+                        if s.lower() in PREFERRED_LANGS:
+                            first_line_after_open = False
+                            continue
+                        # 언어 태그가 아니면 정상 코드 → 그대로 진행
+                        first_line_after_open = False
+
+                    out_buf.append(ln)
+
+            if out_buf:
+                yield "".join(out_buf)
+
+            # 닫는 펜스까지 보였다면 종료
+            if fence_open_seen and not in_code_block:
+                break
+
+    # 3) 동기 이터레이터를 비동기 제너레이터로 래핑
+    loop = asyncio.get_event_loop()
+    for token_text in await loop.run_in_executor(None, lambda: list(_iter_code_tokens_sync())):
+        if debug_delay_sec > 0:
+            await asyncio.sleep(debug_delay_sec)
+        yield token_text
+
+async def secure_rewriter_stream(
+    code: str,
+    cwe_findings,
+    model: str = DEFAULT_MODEL,
+    temperature: float = TEMPERATURE,
+    debug_delay_sec: float = 0.0,):
+    """
+    1) build_prompt_for_stream → 2) 토큰 스트리밍 → 3) 최종 고정 코드 반환
+    사용법:
+        assembled = []
+        async for t in secure_rewriter_stream(...):
+            if isinstance(t, dict) and t.get("stage") == "done":
+                fixed_code = t["code"]
+            else:
+                token = t   # str
+    """
+    system_prompt, user_prompt = build_prompt_for_stream(code, cwe_findings)  # 
+
+    assembled = []
+    async for token in stream_fixed_code_tokens(
+        system_prompt,
+        user_prompt,
+        model=model,
+        temperature=temperature,
+        debug_delay_sec=debug_delay_sec,
+    ):
+        assembled.append(token)
+        # 서비스에서 바로 쓸 수 있도록 토큰을 그대로 yield
+        yield token
+
+    # fixed_code = "".join(assembled).rstrip() + "\n"
+    fixed_code = remove_cpp_codeblock("".join(assembled))
+    
+    # 최종 한 번은 메타정보와 함께 전달
+    yield {"stage": "done", "code": fixed_code}
+
 def main_cli():
     parser = argparse.ArgumentParser(description="Rewrite C++ code securely using GPT (based on CWE report).")
     parser.add_argument("--code", "-c", required=True, help="Path to original .cpp file")

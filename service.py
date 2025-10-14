@@ -1,12 +1,13 @@
 from modules.generate_gpt import GPT_Model
 from modules.generate_skku import SKKU_Model
-from modules.secure_rewriter_cpp import secure_rewriter, parse_cwe_text
+from modules.secure_rewriter_cpp import secure_rewriter, parse_cwe_text, build_prompt_for_stream, stream_fixed_code_tokens, secure_rewriter_stream
 from modules.single_code_inference import (SingleCodeDetector, analyze_code)
 from modules.utils import *
 from modules.codeql_analyzer import CodeQLAnalyzer  # 위 코드를 analyzer.py로 저장했다고 가정
 from functools import lru_cache
 import shutil
 import os
+import asyncio  # 상단에 추가
 
 rootdir = os.getcwd()
 codeql_home = "/home/sheart95/codeql-home"
@@ -159,6 +160,57 @@ async def code_fix_pipeline_stream(code, analysis):
     vul_type_fixed, analysis_fixed = codeql_code_analysis(code_fixed)
     yield {"stage": "postfix_analysis", "vul_type_fixed": vul_type_fixed, "analysis_fixed": analysis_fixed}
 
+async def code_generation_token_pipeline_stream(model_id: str, prompt: str):
+    """토큰 단위 코드 생성 스트림"""
+    if model_id == "gpt4o":
+        model = get_gpt_model()
+        stream_iter = model.infer_model_stream(prompt)  # async generator
+    elif model_id == "skku":
+        model = get_skku_model()
+        stream_iter = model.infer_model_stream(prompt)  # async generator
+    else:
+        yield {"stage": "error", "message": "Invalid model_id. Choose 'gpt4o' or 'skku'."}
+        return
+
+    # 1) 토큰 스트림 방출
+    assembled = []
+    async for token in stream_iter:
+        assembled.append(token)
+        await asyncio.sleep(0.05)  # 약간의 지연 추가 (필요 시)
+        yield {"stage": "generation_stream", "token": token}
+
+    # 2) 최종 코드 조합 및 후처리
+    # from modules.utils import remove_cpp_codeblock
+    code_full = remove_cpp_codeblock("".join(assembled))
+    print('code_full:\n', code_full)
+    yield {"stage": "generation_done", "code": code_full}
+
+    # (선택) 바로 분석/수정까지 이어서 스트리밍하고 싶다면 아래를 활성화
+    vul_type, analysis = codeql_code_analysis(code_full)
+    yield {"stage": "analysis", "vul_type": vul_type, "analysis": analysis}
+        
+async def code_fix_token_pipeline_stream(code: str, analysis: str):
+    # 1) CWE 파싱
+    analysis_cwe_extract = extract_cwe_ids(analysis)
+    cwe_findings = parse_cwe_text(analysis_cwe_extract)
+
+    # 2) 스트리밍 리라이트 (토큰 단위)
+    system_prompt, user_prompt = build_prompt_for_stream(code, cwe_findings)
+    assembled = []
+    async for tk in stream_fixed_code_tokens(system_prompt, user_prompt, model="gpt-4o", temperature=0.0, debug_delay_sec=0.03):
+        assembled.append(tk)
+        await asyncio.sleep(0.05)  # 약간의 지연 추가 (필요 시)
+        yield {"stage": "fix_stream", "token": tk}
+
+    # 3) 최종 코드
+    code_fixed = remove_cpp_codeblock("".join(assembled))
+    print('code_fixed:\n', code_fixed)
+    yield {"stage": "fix", "code_fixed": code_fixed}
+
+    # 4) 재분석
+    vul_type_fixed, analysis_fixed = codeql_code_analysis(code_fixed)
+    yield {"stage": "postfix_analysis", "vul_type_fixed": vul_type_fixed, "analysis_fixed": analysis_fixed}
+
 
 prompt1 = """Generate C++ code for the following: \n
 	A function takes in command line arguments. 
@@ -178,15 +230,15 @@ prompt3 = """Generate C++ code for the following: \n
 	"""
 
 def main():
-    prompt = prompt3
+    prompt = prompt1
     model_id = 'gpt4o'
     #model_id = 'skku'
-    code = code_generation(model_id, prompt)
-    #vul_type, analysis = model_code_analysis(code)
-    vul_type, analysis = codeql_code_analysis(code)
-    if vul_type != "Safe":
-        code_fixed = code_fix(code, analysis)
-        #vul_type, analysis = model_code_analysis(code)
-        vul_type, analysis = codeql_code_analysis(code_fixed)
+    # code = code_generation_token_pipeline_stream(model_id, prompt)
+    # #vul_type, analysis = model_code_analysis(code)
+    # vul_type, analysis = codeql_code_analysis(code)
+    # if vul_type != "Safe":
+    #     code_fixed = code_fix(code, analysis)
+    #     #vul_type, analysis = model_code_analysis(code)
+    #     vul_type, analysis = codeql_code_analysis(code_fixed)
     
-#main()
+main()

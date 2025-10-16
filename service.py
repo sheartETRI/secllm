@@ -18,13 +18,10 @@ db_path = f"{rootdir}/codeql_tmp/db"
 # 사용자의 CodeQL repo 경로 지정 (예시)
 codeql_repo = "/home/sheart95/codeql-home/codeql-repo"  # 예: ~/codeql-home/codeql
 
-@lru_cache
-def get_codeql_analyzer():
-    return CodeQLAnalyzer(
-        code_path=str(code_path),
-        database_path=str(db_path),
-        codeql_repo_path=str(codeql_repo)
-    )
+
+########################################################################
+# 모델 라이브러리 캐싱 ##################################################
+########################################################################
 
 @lru_cache
 def get_gpt_model():
@@ -34,6 +31,17 @@ def get_gpt_model():
 def get_skku_model():
     return SKKU_Model("./models/llama-3.1-8b-finetuned")
 
+########################################################################
+# 코드 분석 라이브러리 캐싱 ##############################################
+########################################################################
+@lru_cache
+def get_codeql_analyzer():
+    return CodeQLAnalyzer(
+        code_path=str(code_path),
+        database_path=str(db_path),
+        codeql_repo_path=str(codeql_repo)
+    )
+
 @lru_cache
 def get_skku_detector():
     return SingleCodeDetector(
@@ -42,7 +50,11 @@ def get_skku_detector():
         model_type="roberta",
         num_labels=4
     )
-    
+
+############################################################################
+# 서비스 API 유닛 ###########################################################
+############################################################################
+
 # 1. 코드 생성
 def code_generation(model_id: str, prompt: str):
     if model_id == "gpt4o":
@@ -57,7 +69,7 @@ def code_generation(model_id: str, prompt: str):
     print('code:\n', code)
     return code
 
-# 2.1 코드 분석
+# 2.1 코드 분석 (성균관대 분석 모델)
 def model_code_analysis(code: str):
     detector = get_skku_detector()
     vul_type, analysis = analyze_code(detector, code)
@@ -65,7 +77,7 @@ def model_code_analysis(code: str):
     print(analysis)
     return vul_type, analysis
 
-# 2.2 CODEQL 분석
+# 2.2 CODEQL 분석 (정적 분석 모델)
 def codeql_code_analysis(code: str):
     analyzer = get_codeql_analyzer()
     try:
@@ -92,16 +104,12 @@ def code_fix(code: str, analysis: str):
     print('fixed_code:\n', fixed_code)
     return fixed_code
 
+###########################################################################
+# 전체 파이프라인 (스트리밍 X, 토큰 단위 생성 X) #############################
+###########################################################################
 def pipeline(model_id, prompt):
     code = code_generation(model_id, prompt)
     vul_type, analysis = codeql_code_analysis(code)
-    
-    # print("\n=== Summary ===")
-    # print("=== Code Generation Response ===")
-    # print("Generated Code:\n", code)
-    # print("=== Code Analysis Response (Model) ===")
-    # print("Vulnerability Type:", vul_type)
-    # print("Analysis:\n", analysis)
     
     if vul_type != "Safe":
         code_fixed = code_fix(code, analysis)
@@ -119,8 +127,9 @@ def pipeline(model_id, prompt):
     
     return code, vul_type, analysis, code_fixed, vul_type_fixed, analysis_fixed
 
-# service.py
-# 전체 스트리밍 파이프라인
+###########################################################################
+# 전체 스트리밍 파이프라인 (토큰 단위 생성 X) ################################
+###########################################################################
 async def pipeline_stream(model_id, prompt):
     # 1. 코드 생성
     code = code_generation(model_id, prompt)
@@ -140,6 +149,10 @@ async def pipeline_stream(model_id, prompt):
     else:
         yield {"stage": "done", "message": "No vulnerabilities found."}
 
+#############################################################################
+###### 스트리밍 코드 생성 및 수정 파이프라인 분할 (토큰 단위 생성 X) ############
+###### 코드 생성/ 코드 수정 분할 ##############################################
+#############################################################################
 # 스트리밍 코드 생성 파이프라인
 async def code_generation_pipeline_stream(model_id, prompt):
     # 1. 코드 생성
@@ -159,7 +172,13 @@ async def code_fix_pipeline_stream(code, analysis):
     # 4. 수정된 코드 재분석
     vul_type_fixed, analysis_fixed = codeql_code_analysis(code_fixed)
     yield {"stage": "postfix_analysis", "vul_type_fixed": vul_type_fixed, "analysis_fixed": analysis_fixed}
+#############################################################################
 
+
+#############################################################################
+###### 스트리밍 코드 생성 및 수정 파이프라인 (토큰 단위 생성 O) ################
+###### 코드 생성/ 코드 수정 분할 ##############################################
+#############################################################################
 async def code_generation_token_pipeline_stream(model_id: str, prompt: str):
     """토큰 단위 코드 생성 스트림"""
     if model_id == "gpt4o":
@@ -210,6 +229,7 @@ async def code_fix_token_pipeline_stream(code: str, analysis: str):
     # 4) 재분석
     vul_type_fixed, analysis_fixed = codeql_code_analysis(code_fixed)
     yield {"stage": "postfix_analysis", "vul_type_fixed": vul_type_fixed, "analysis_fixed": analysis_fixed}
+##############################################################################
 
 
 prompt1 = """Generate C++ code for the following: \n

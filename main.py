@@ -89,7 +89,7 @@ async def run_pipeline_stream(req: PipelineRequest):
             yield json.dumps(item) + "\n"   # 줄바꿈으로 chunk 구분
     return StreamingResponse(event_generator(), media_type="application/json")
 
-# 5. 스트리밍 코드 생성 파이프라인 API
+# 6-1. 스트리밍 코드 생성 파이프라인 API
 @app.post("/code/pipeline/generation_stream")
 async def run_generation_pipeline_stream(req: PipelineRequest):
     async def event_generator():
@@ -97,7 +97,7 @@ async def run_generation_pipeline_stream(req: PipelineRequest):
             yield json.dumps(item) + "\n"   # 줄바꿈으로 chunk 구분
     return StreamingResponse(event_generator(), media_type="application/json")
 
-# 6. 스트리밍 코드 수정 파이프라인 API
+# 6-2. 스트리밍 코드 수정 파이프라인 API
 @app.post("/code/pipeline/fix_stream")
 async def run_fix_pipeline_stream(req: FixRequest):
     async def event_generator():
@@ -105,7 +105,7 @@ async def run_fix_pipeline_stream(req: FixRequest):
             yield json.dumps(item) + "\n"   # 줄바꿈으로 chunk 구분
     return StreamingResponse(event_generator(), media_type="application/json")
 
-# 7. 토큰 스트리밍 코드 생성 API
+# 7-1. 토큰 스트리밍 코드 생성 API
 @app.post("/code/pipeline/generation_token_stream")
 async def run_generation_token_stream(req: PipelineRequest):
     async def event_generator():
@@ -114,7 +114,7 @@ async def run_generation_token_stream(req: PipelineRequest):
             yield json.dumps(item) + "\n"
     return StreamingResponse(event_generator(), media_type="application/json")
 
-# 8. 토큰 스트리밍 코드 수정 API
+# 7-2. 토큰 스트리밍 코드 수정 API
 @app.post("/code/pipeline/fix_token_stream")
 async def run_fix_token_stream(req: FixRequest):
     async def event_generator():
